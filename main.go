@@ -66,7 +66,7 @@ func main() {
 		log.Fatal("Failed to initialize OpenGL:", err)
 	}
 
-	gol, err := NewGameOfLife(50, 50, width, height)
+	gol, err := NewGameOfLife(20, 20, width, height)
 	if err != nil {
 		log.Fatal("Failed to create game of life:", err)
 	}
@@ -76,11 +76,11 @@ func main() {
 	mousePosY := 0.0
 
 	mousePosToWindowRenderCoords := func(x, y float64) (float64, float64) {
-		return (x - float64(width)/2.0) / float64(
-				width,
-			), (y - float64(height)/2.0) / float64(
-				height,
-			)
+		renderX := (x - float64(width)/2.0) / float64(width)
+		renderY := -1.0 * (y - float64(height)/2.0) / float64(height)
+		log.Printf("mousePosToWindowRenderCoords: %f, %f -> %f, %f", x, y, renderX, renderY)
+
+		return renderX, renderY
 	}
 
 	window.SetMouseButtonCallback(
@@ -88,26 +88,18 @@ func main() {
 			if action == glfw.Press {
 				x, y := mousePosToWindowRenderCoords(mousePosX, mousePosY)
 				if button == glfw.MouseButton1 {
-					log.Printf(
-						"left mouse button pressed at %f, %f - %f, %f\n",
-						mousePosX,
-						mousePosY,
-						x,
-						y,
-					)
-				}
-				if button == glfw.MouseButton2 {
-					log.Printf(
-						"right mouse button pressed at %f, %f - %f, %f\n",
-						mousePosX,
-						mousePosY,
-						x,
-						y,
-					)
+					gol.ToggleCell(x, y)
 				}
 			}
 		},
 	)
+
+	paused := false
+	window.SetKeyCallback(func(w *glfw.Window, key glfw.Key, scancode int, action glfw.Action, mods glfw.ModifierKey) {
+		if key == glfw.KeySpace && action == glfw.Press {
+			paused = !paused
+		}
+	})
 
 	window.SetCursorPosCallback(func(w *glfw.Window, xpos, ypos float64) {
 		mousePosX = xpos
@@ -118,7 +110,9 @@ func main() {
 	for !window.ShouldClose() {
 		t := time.Now()
 		draw(window, program, gol)
-		gol.Update()
+		if !paused {
+			gol.Update()
+		}
 		time.Sleep(time.Second/time.Duration(fps) - time.Since(t))
 	}
 }

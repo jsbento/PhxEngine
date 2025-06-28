@@ -2,6 +2,8 @@ package main
 
 import (
 	"errors"
+	"log"
+	"math"
 	"math/rand"
 
 	m "github.com/go-gl/mathgl/mgl32"
@@ -63,6 +65,19 @@ func (gol *GameOfLife) Update() {
 		}
 	}
 	gol.Cells, gol.Next = gol.Next, gol.Cells
+}
+
+func (gol *GameOfLife) ToggleCell(x, y float64) {
+	cellX := math.Floor((x + 0.5) * float64(gol.Width))
+	cellY := math.Floor((y + 0.5) * float64(gol.Height))
+
+	index := int(cellY)*gol.Width + int(cellX)
+	if index < 0 || index >= len(gol.Cells) {
+		log.Printf("index out of bounds: %d", index)
+		return
+	}
+
+	gol.Cells[index] = !gol.Cells[index]
 }
 
 func (gol *GameOfLife) CountLiveNeighbors(x, y int) int {
