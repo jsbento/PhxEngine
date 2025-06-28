@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"runtime"
 	"time"
@@ -8,21 +9,23 @@ import (
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/go-gl/glfw/v3.3/glfw"
 
+	// m "github.com/go-gl/mathgl/mgl32"
 	i "github.com/jsbento/PhxEngine/core/init"
-	p "github.com/jsbento/PhxEngine/renderer/primitives"
-	p2d "github.com/jsbento/PhxEngine/renderer/primitives/2d"
-	p3d "github.com/jsbento/PhxEngine/renderer/primitives/3d"
-	s "github.com/jsbento/PhxEngine/renderer/shaders"
+	// p "github.com/jsbento/PhxEngine/renderer/primitives"
+	// p2d "github.com/jsbento/PhxEngine/renderer/primitives/2d"
+	// p3d "github.com/jsbento/PhxEngine/renderer/primitives/3d"
 
-	m "github.com/go-gl/mathgl/mgl32"
+	s "github.com/jsbento/PhxEngine/renderer/shaders"
 )
 
 const (
 	threshold = 0.15
-	fps       = 60
+	fps       = 10
 
-	width  = 1280
-	height = 720
+	// width  = 1280
+	// height = 720
+	width  = 600
+	height = 600
 
 	vertexShaderSource = `
     #version 410
@@ -36,39 +39,91 @@ const (
     #version 410
     out vec4 frag_color;
     void main() {
-        frag_color = vec4(1, 0, 1, 1);
+        frag_color = vec4(1.0, 0.0, 0.0, 1.0);
     }
 	` + "\x00"
 )
 
 func main() {
+	isDebug := flag.Bool("debug", false, "Enable debug mode")
+	flag.Parse()
+
 	runtime.LockOSThread()
 
 	window, err := i.InitGlfw(&i.WindowProps{
 		Width:  width,
 		Height: height,
 		Title:  "Phoenix Engine",
+		Debug:  *isDebug,
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer glfw.Terminate()
 
-	program := initOpenGL()
+	err = i.InitOpenGL(*isDebug)
+	if err != nil {
+		log.Fatal("Failed to initialize OpenGL:", err)
+	}
+
+	gol, err := NewGameOfLife(50, 50, width, height)
+	if err != nil {
+		log.Fatal("Failed to create game of life:", err)
+	}
+	gol.Randomize()
+
+	mousePosX := 0.0
+	mousePosY := 0.0
+
+	mousePosToWindowRenderCoords := func(x, y float64) (float64, float64) {
+		return (x - float64(width)/2.0) / float64(
+				width,
+			), (y - float64(height)/2.0) / float64(
+				height,
+			)
+	}
+
+	window.SetMouseButtonCallback(
+		func(w *glfw.Window, button glfw.MouseButton, action glfw.Action, mods glfw.ModifierKey) {
+			if action == glfw.Press {
+				x, y := mousePosToWindowRenderCoords(mousePosX, mousePosY)
+				if button == glfw.MouseButton1 {
+					log.Printf(
+						"left mouse button pressed at %f, %f - %f, %f\n",
+						mousePosX,
+						mousePosY,
+						x,
+						y,
+					)
+				}
+				if button == glfw.MouseButton2 {
+					log.Printf(
+						"right mouse button pressed at %f, %f - %f, %f\n",
+						mousePosX,
+						mousePosY,
+						x,
+						y,
+					)
+				}
+			}
+		},
+	)
+
+	window.SetCursorPosCallback(func(w *glfw.Window, xpos, ypos float64) {
+		mousePosX = xpos
+		mousePosY = ypos
+	})
+
+	program := createProgram()
 	for !window.ShouldClose() {
 		t := time.Now()
-		draw(window, program)
+		draw(window, program, gol)
+		gol.Update()
 		time.Sleep(time.Second/time.Duration(fps) - time.Since(t))
 	}
 }
 
-func initOpenGL() uint32 {
-	if err := gl.Init(); err != nil {
-		log.Fatal("Failed to initialize gl:", err)
-	}
-	version := gl.GoStr(gl.GetString(gl.VERSION))
-	log.Println("OpenGL version:", version)
-
+func createProgram() uint32 {
 	vertexShader, err := s.CompileShader(vertexShaderSource, gl.VERTEX_SHADER)
 	if err != nil {
 		log.Fatalf("Error compiling shader: %v", err)
@@ -89,45 +144,50 @@ func initOpenGL() uint32 {
 	return program
 }
 
-func draw(window *glfw.Window, program uint32) {
+func draw(window *glfw.Window, program uint32, gol *GameOfLife) {
+	gl.ClearColor(0.0, 0.0, 0.0, 1.0)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 	gl.UseProgram(program)
 
-	renderables := []p.Renderable2D{}
-	renderables3D := []p.Renderable3D{}
-
-	renderables = append(renderables, p.Renderable2D(p2d.NewQuad(
-		m.Vec2{0.5, 0.5},
-		m.Vec2{1.0, 1.0},
-		m.DegToRad(45.0),
-	)))
-
-	renderables = append(renderables, p.Renderable2D(p2d.NewCircle(
-		m.Vec2{0.7, -0.7},
-		m.Vec2{1.0, 1.0},
-		0.3,
-		50,
-	)))
-
-	renderables3D = append(renderables3D, p.Renderable3D(p3d.NewCuboid(
-		m.Vec3{0.0, -0.5, 0.0},
-		m.Vec3{0.5, 0.5, 0.5},
-		m.Vec3{0.0, 0.0, 0.0},
-	)))
-
-	for _, renderable := range renderables {
-		renderable.Draw()
-	}
-	for _, renderable := range renderables3D {
-		renderable.Draw()
+	for _, r := range gol.Renderables() {
+		r.Draw()
 	}
 
-	line := p2d.NewLine(
-		m.Vec2{-0.75, -0.5},
-		m.Vec2{-0.25, 0.75},
-		2.0,
-	)
-	line.Draw()
+	// renderables := []p.Renderable2D{}
+	// renderables3D := []p.Renderable3D{}
+
+	// renderables = append(renderables, p.Renderable2D(p2d.NewQuad(
+	// 	m.Vec2{0.5, 0.5},
+	// 	m.Vec2{1.0, 1.0},
+	// 	m.DegToRad(45.0),
+	// )))
+
+	// renderables = append(renderables, p.Renderable2D(p2d.NewCircle(
+	// 	m.Vec2{0.7, -0.7},
+	// 	m.Vec2{1.0, 1.0},
+	// 	0.3,
+	// 	50,
+	// )))
+
+	// renderables3D = append(renderables3D, p.Renderable3D(p3d.NewCuboid(
+	// 	m.Vec3{0.0, -0.5, 0.0},
+	// 	m.Vec3{0.5, 0.5, 0.5},
+	// 	m.Vec3{0.0, 0.0, 0.0},
+	// )))
+
+	// for _, renderable := range renderables {
+	// 	renderable.Draw()
+	// }
+	// for _, renderable := range renderables3D {
+	// 	renderable.Draw()
+	// }
+
+	// line := p2d.NewLine(
+	// 	m.Vec2{-0.75, -0.5},
+	// 	m.Vec2{-0.25, 0.75},
+	// 	2.0,
+	// )
+	// line.Draw()
 
 	glfw.PollEvents()
 	window.SwapBuffers()

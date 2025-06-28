@@ -8,6 +8,7 @@ type WindowProps struct {
 	Width  int
 	Height int
 	Title  string
+	Debug  bool
 }
 
 func InitGlfw(windowProps *WindowProps) (*glfw.Window, error) {
@@ -20,6 +21,10 @@ func InitGlfw(windowProps *WindowProps) (*glfw.Window, error) {
 	glfw.WindowHint(glfw.ContextVersionMinor, 6)
 	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
 	glfw.WindowHint(glfw.OpenGLForwardCompatible, glfw.True)
+
+	if windowProps.Debug {
+		glfw.WindowHint(glfw.OpenGLDebugContext, glfw.True)
+	}
 
 	window, err := glfw.CreateWindow(
 		windowProps.Width,
