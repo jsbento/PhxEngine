@@ -12,12 +12,14 @@ import (
 )
 
 type GameOfLife struct {
-	WindowWidth  int
-	WindowHeight int
-	Width        int
-	Height       int
-	Cells        []bool
-	Next         []bool
+	WindowWidth             int
+	WindowHeight            int
+	Width                   int
+	Height                  int
+	Cells                   []bool
+	Next                    []bool
+	MultiDraw               bool
+	CurrentMultiDrawIndexes map[int]bool
 }
 
 func NewGameOfLife(width, height, windowWidth, windowHeight int) (*GameOfLife, error) {
@@ -46,9 +48,24 @@ func NewGameOfLife(width, height, windowWidth, windowHeight int) (*GameOfLife, e
 	}, nil
 }
 
+func (gol *GameOfLife) ToggleMultiDraw(multiDraw bool) {
+	gol.MultiDraw = multiDraw
+	if multiDraw {
+		gol.CurrentMultiDrawIndexes = make(map[int]bool)
+	} else {
+		gol.CurrentMultiDrawIndexes = nil
+	}
+}
+
 func (gol *GameOfLife) Randomize() {
 	for i := range gol.Cells {
-		gol.Cells[i] = rand.Float64() < 0.1
+		gol.Cells[i] = rand.Float64() < 0.25
+	}
+}
+
+func (gol *GameOfLife) Clear() {
+	for i := range gol.Cells {
+		gol.Cells[i] = false
 	}
 }
 
@@ -77,7 +94,14 @@ func (gol *GameOfLife) ToggleCell(x, y float64) {
 		return
 	}
 
-	gol.Cells[index] = !gol.Cells[index]
+	if gol.MultiDraw {
+		if toggled := gol.CurrentMultiDrawIndexes[index]; !toggled {
+			gol.CurrentMultiDrawIndexes[index] = true
+			gol.Cells[index] = !gol.Cells[index]
+		}
+	} else {
+		gol.Cells[index] = !gol.Cells[index]
+	}
 }
 
 func (gol *GameOfLife) CountLiveNeighbors(x, y int) int {
@@ -112,8 +136,8 @@ func (gol *GameOfLife) Renderables() []p.Renderable2D {
 			index := y*gol.Width + x
 
 			if gol.Cells[index] {
-				xCoord := (((float32(x) * cellSize.X()) + cellSize.X()/2.0) - offsets.X()) / (float32(gol.WindowWidth) / 2.0)
-				yCoord := (((float32(y) * cellSize.Y()) + cellSize.Y()/2.0) - offsets.Y()) / (float32(gol.WindowHeight) / 2.0)
+				xCoord := (((float32(x) * cellSize.X()) + cellSize.X()/2.0) - offsets.X()) / offsets.X()
+				yCoord := (((float32(y) * cellSize.Y()) + cellSize.Y()/2.0) - offsets.Y()) / offsets.Y()
 
 				out = append(out, p.Renderable2D(
 					p2d.NewQuad(
@@ -122,8 +146,8 @@ func (gol *GameOfLife) Renderables() []p.Renderable2D {
 							yCoord,
 						},
 						m.Vec2{
-							(cellSize.X() / float32(gol.WindowWidth)) * 0.9,
-							(cellSize.Y() / float32(gol.WindowHeight)) * 0.9,
+							(cellSize.X() / float32(gol.WindowWidth)) * 1.1,
+							(cellSize.Y() / float32(gol.WindowHeight)) * 1.1,
 						},
 						0.0,
 					)),
