@@ -19,19 +19,16 @@ import (
 )
 
 const (
-	threshold = 0.15
-	fps       = 10
-
-	// width  = 1280
-	// height = 720
-	width  = 600
-	height = 600
+	fps = 10
 
 	vertexShaderSource = `
     #version 410
-    in vec3 vp;
+    layout (location = 0) in vec3 vp;
+    layout (location = 1) in vec2 instancePos;
+    uniform vec2 uScale;
     void main() {
-        gl_Position = vec4(vp, 1.0);
+        vec2 pos = (vp.xy * uScale) + instancePos;
+        gl_Position = vec4(pos, vp.z, 1.0);
     }
 	` + "\x00"
 
@@ -50,9 +47,11 @@ func main() {
 
 	runtime.LockOSThread()
 
+	initialWindowWidth := 600
+	initialWindowHeight := 600
 	window, err := i.InitGlfw(&i.WindowProps{
-		Width:  width,
-		Height: height,
+		Width:  initialWindowWidth,
+		Height: initialWindowHeight,
 		Title:  "Phoenix Engine",
 		Debug:  *isDebug,
 	})
@@ -65,21 +64,37 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to initialize OpenGL:", err)
 	}
+	framebufferWidth, framebufferHeight := window.GetFramebufferSize()
+	if framebufferWidth > 0 && framebufferHeight > 0 {
+		gl.Viewport(0, 0, int32(framebufferWidth), int32(framebufferHeight))
+	}
 
-	gol, err := NewGameOfLife(10, 10, width, height)
+	gol, err := NewGameOfLife(100, 100)
 	if err != nil {
 		log.Fatal("Failed to create game of life:", err)
 	}
+	windowWidth, windowHeight := window.GetSize()
+	gol.SetWindowSize(windowWidth, windowHeight)
 	gol.Randomize()
-
+	gol.InitRender()
+	defer gol.Destroy()
 	mousePosX := 0.0
 	mousePosY := 0.0
 
 	mousePosToWindowRenderCoords := func(x, y float64) (float64, float64) {
-		renderX := (x - float64(width)/2.0) / float64(width)
-		renderY := -1.0 * (y - float64(height)/2.0) / float64(height)
+		renderX := (x - float64(windowWidth)/2.0) / float64(windowWidth)
+		renderY := -1.0 * (y - float64(windowHeight)/2.0) / float64(windowHeight)
 		return renderX, renderY
 	}
+
+	window.SetFramebufferSizeCallback(func(w *glfw.Window, fbWidth, fbHeight int) {
+		if fbWidth <= 0 || fbHeight <= 0 {
+			return
+		}
+		gl.Viewport(0, 0, int32(fbWidth), int32(fbHeight))
+		windowWidth, windowHeight = w.GetSize()
+		gol.OnResize(windowWidth, windowHeight)
+	})
 
 	window.SetMouseButtonCallback(
 		func(w *glfw.Window, button glfw.MouseButton, action glfw.Action, mods glfw.ModifierKey) {
@@ -123,7 +138,11 @@ func main() {
 		if !paused {
 			gol.Update()
 		}
-		time.Sleep(time.Second/time.Duration(fps) - time.Since(t))
+		frameBudget := time.Second / time.Duration(fps)
+		elapsed := time.Since(t)
+		if remaining := frameBudget - elapsed; remaining > 0 {
+			time.Sleep(remaining)
+		}
 	}
 }
 
@@ -152,10 +171,7 @@ func draw(window *glfw.Window, program uint32, gol *GameOfLife) {
 	gl.ClearColor(0.0, 0.0, 0.0, 1.0)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 	gl.UseProgram(program)
-
-	for _, r := range gol.Renderables() {
-		r.Draw()
-	}
+	gol.DrawInstances(program)
 
 	// renderables := []p.Renderable2D{}
 	// renderables3D := []p.Renderable3D{}
@@ -181,9 +197,11 @@ func draw(window *glfw.Window, program uint32, gol *GameOfLife) {
 
 	// for _, renderable := range renderables {
 	// 	renderable.Draw()
+	// 	renderable.Destroy()
 	// }
 	// for _, renderable := range renderables3D {
 	// 	renderable.Draw()
+	// 	renderable.Destroy()
 	// }
 
 	// line := p2d.NewLine(

@@ -8,6 +8,12 @@ import (
 
 type Circle struct {
 	renderId    uint32
+	vao         uint32
+	vertexCount int32
+	baseCircle  []m.Vec2
+	vertexData  []float32
+	buffersInit bool
+	dirty       bool
 	transform   m.Mat4
 	Translation m.Vec2
 	Scalar      m.Vec2
@@ -28,34 +34,21 @@ func NewCircle(
 		Radius:      radius,
 		NumSlices:   numSlices,
 	}
+	c.baseCircle = m.Circle(
+		c.Radius,
+		c.Radius,
+		c.NumSlices,
+	)
 	c.UpdateTransform()
 	return
 }
 
 func (c *Circle) Draw() {
-	circle := m.Circle(
-		c.Radius*c.Scalar.X(),
-		c.Radius*c.Scalar.Y(),
-		c.NumSlices,
-	)
-	vertices := []float32{}
-	for _, vertex := range circle {
-		v := c.transform.Mul4x1(vertex.Vec4(0.0, 1.0))
-		vertices = append(vertices, v.X(), v.Y(), v.Z())
-	}
-
-	gl.GenBuffers(1, &c.renderId)
-	gl.BindBuffer(gl.ARRAY_BUFFER, c.renderId)
-	gl.BufferData(gl.ARRAY_BUFFER, len(vertices)*4, gl.Ptr(vertices), gl.STATIC_DRAW)
-
-	var vao uint32
-	gl.GenVertexArrays(1, &vao)
-	gl.BindVertexArray(vao)
-	gl.EnableVertexAttribArray(0)
-	gl.BindBuffer(gl.ARRAY_BUFFER, c.renderId)
-	gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 0, nil)
-
-	gl.DrawArrays(gl.TRIANGLES, 0, int32(len(vertices)))
+	c.ensureBuffers()
+	c.updateVertexData()
+	gl.BindVertexArray(c.vao)
+	gl.DrawArrays(gl.TRIANGLES, 0, c.vertexCount)
+	gl.BindVertexArray(0)
 }
 
 func (c *Circle) Translate(pos m.Vec2) {
@@ -80,4 +73,60 @@ func (c *Circle) UpdateTransform() {
 		m.Vec3{0.0, 0.0, 1.0},
 		c.Translation.Vec3(0.0),
 	)
+	c.dirty = true
+}
+
+func (c *Circle) Destroy() {
+	if !c.buffersInit {
+		return
+	}
+	gl.DeleteBuffers(1, &c.renderId)
+	gl.DeleteVertexArrays(1, &c.vao)
+	c.renderId = 0
+	c.vao = 0
+	c.buffersInit = false
+}
+
+func (c *Circle) ensureBuffers() {
+	if c.buffersInit {
+		return
+	}
+	gl.GenVertexArrays(1, &c.vao)
+	gl.GenBuffers(1, &c.renderId)
+
+	gl.BindVertexArray(c.vao)
+	gl.BindBuffer(gl.ARRAY_BUFFER, c.renderId)
+	gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 0, nil)
+	gl.EnableVertexAttribArray(0)
+	gl.BindVertexArray(0)
+
+	c.buffersInit = true
+}
+
+func (c *Circle) updateVertexData() {
+	if !c.dirty {
+		return
+	}
+	if c.baseCircle == nil {
+		c.baseCircle = m.Circle(
+			c.Radius,
+			c.Radius,
+			c.NumSlices,
+		)
+	}
+	required := len(c.baseCircle) * 3
+	if cap(c.vertexData) < required {
+		c.vertexData = make([]float32, 0, required)
+	} else {
+		c.vertexData = c.vertexData[:0]
+	}
+	for _, vertex := range c.baseCircle {
+		v := c.transform.Mul4x1(vertex.Vec4(0.0, 1.0))
+		c.vertexData = append(c.vertexData, v.X(), v.Y(), v.Z())
+	}
+	c.vertexCount = int32(len(c.vertexData) / 3)
+
+	gl.BindBuffer(gl.ARRAY_BUFFER, c.renderId)
+	gl.BufferData(gl.ARRAY_BUFFER, len(c.vertexData)*4, gl.Ptr(c.vertexData), gl.DYNAMIC_DRAW)
+	c.dirty = false
 }

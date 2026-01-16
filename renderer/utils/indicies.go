@@ -1,17 +1,33 @@
 package utils
 
 import (
-	"fmt"
+	"math"
 
 	m "github.com/go-gl/mathgl/mgl32"
 )
 
+type vec4Key struct {
+	x uint32
+	y uint32
+	z uint32
+	w uint32
+}
+
+func vec4KeyFromVec4(v m.Vec4) vec4Key {
+	return vec4Key{
+		x: math.Float32bits(v.X()),
+		y: math.Float32bits(v.Y()),
+		z: math.Float32bits(v.Z()),
+		w: math.Float32bits(v.W()),
+	}
+}
+
 func GenerateIndices(vertices []m.Vec4) []uint32 {
 	indices := []uint32{}
-	vertexToIndex := make(map[string]uint32)
+	vertexToIndex := make(map[vec4Key]uint32)
 	nextIdx := 0
 	for _, vertex := range vertices {
-		key := stringifyVec4(vertex)
+		key := vec4KeyFromVec4(vertex)
 		if idx, ok := vertexToIndex[key]; ok {
 			indices = append(indices, idx)
 		} else {
@@ -25,11 +41,11 @@ func GenerateIndices(vertices []m.Vec4) []uint32 {
 
 func GenerateIndexedVertices(rawVertices []m.Vec4) (vertices []m.Vec4, indices []uint32) {
 	vertices, indices = []m.Vec4{}, []uint32{}
-	vertexToIndex := make(map[string]uint32)
+	vertexToIndex := make(map[vec4Key]uint32)
 	nextIdx := 0
 
 	for _, vertex := range rawVertices {
-		key := stringifyVec4(vertex)
+		key := vec4KeyFromVec4(vertex)
 		if idx, ok := vertexToIndex[key]; ok {
 			indices = append(indices, idx)
 		} else {
@@ -41,8 +57,4 @@ func GenerateIndexedVertices(rawVertices []m.Vec4) (vertices []m.Vec4, indices [
 	}
 
 	return
-}
-
-func stringifyVec4(v m.Vec4) string {
-	return fmt.Sprintf("{%f, %f, %f, %f}", v.X(), v.Y(), v.Z(), v.W())
 }

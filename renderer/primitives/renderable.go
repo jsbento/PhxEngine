@@ -10,6 +10,7 @@ type Renderable2D interface {
 	Scale(scale m.Vec2)
 	Rotate(angle float32)
 	UpdateTransform()
+	Destroy()
 }
 
 type Renderable3D interface {
@@ -18,4 +19,5 @@ type Renderable3D interface {
 	Scale(scale m.Vec3)
 	Rotate(rotation m.Vec3)
 	UpdateTransform()
+	Destroy()
 }
