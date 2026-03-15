@@ -112,14 +112,16 @@ func main() {
 	)
 
 	paused := false
-	window.SetKeyCallback(func(w *glfw.Window, key glfw.Key, scancode int, action glfw.Action, mods glfw.ModifierKey) {
-		if key == glfw.KeySpace && action == glfw.Press {
-			paused = !paused
-		}
-		if key == glfw.KeyEscape && action == glfw.Press {
-			gol.Clear()
-		}
-	})
+	window.SetKeyCallback(
+		func(w *glfw.Window, key glfw.Key, scancode int, action glfw.Action, mods glfw.ModifierKey) {
+			if key == glfw.KeySpace && action == glfw.Press {
+				paused = !paused
+			}
+			if key == glfw.KeyEscape && action == glfw.Press {
+				gol.Clear()
+			}
+		},
+	)
 
 	window.SetCursorPosCallback(func(w *glfw.Window, xpos, ypos float64) {
 		mousePosX = xpos

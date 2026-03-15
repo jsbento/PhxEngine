@@ -115,7 +115,8 @@ func (gol *GameOfLife) ToggleCell(x, y float64) {
 	}
 
 	if gol.MultiDraw {
-		if gol.CurrentMultiDrawIndexes == nil || len(gol.CurrentMultiDrawIndexes) != len(gol.Cells) {
+		if gol.CurrentMultiDrawIndexes == nil ||
+			len(gol.CurrentMultiDrawIndexes) != len(gol.Cells) {
 			gol.CurrentMultiDrawIndexes = make([]bool, len(gol.Cells))
 		}
 		if !gol.CurrentMultiDrawIndexes[index] {
@@ -257,7 +258,12 @@ func (gol *GameOfLife) updateInstanceData() {
 		gol.instanceCapacityBytes = requiredBytes
 		gl.BufferData(gl.ARRAY_BUFFER, gol.instanceCapacityBytes, nil, gl.DYNAMIC_DRAW)
 	}
-	gl.BufferSubData(gl.ARRAY_BUFFER, 0, len(gol.instancePositions)*4, gl.Ptr(gol.instancePositions))
+	gl.BufferSubData(
+		gl.ARRAY_BUFFER,
+		0,
+		len(gol.instancePositions)*4,
+		gl.Ptr(gol.instancePositions),
+	)
 }
 
 func (gol *GameOfLife) recalculateRenderMetrics() {

@@ -26,7 +26,11 @@ func CompileShader(source string, shaderType uint32) (uint32, error) {
 		logMessage := strings.Repeat("\x00", int(logLength+1))
 		gl.GetShaderInfoLog(shader, logLength, nil, gl.Str(logMessage))
 
-		log.Printf("OpenGL shader compile failed: type=%s error=%s\n", shaderTypeString(shaderType), logMessage)
+		log.Printf(
+			"OpenGL shader compile failed: type=%s error=%s\n",
+			shaderTypeString(shaderType),
+			logMessage,
+		)
 		return 0, fmt.Errorf("failed to compile %v: %v", source, logMessage)
 	}
 
