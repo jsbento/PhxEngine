@@ -1,41 +1,66 @@
 package shaders
 
 import (
-	"fmt"
-	"log"
+	"errors"
 	"strings"
 
 	"github.com/go-gl/gl/v4.6-core/gl"
 )
 
-func CompileShader(source string, shaderType uint32) (uint32, error) {
-	log.Printf("OpenGL shader compile start: type=%s\n", shaderTypeString(shaderType))
-	shader := gl.CreateShader(shaderType)
+type ShaderConfig struct {
+	Source     string
+	ShaderType uint32
+}
 
-	csources, free := gl.Strs(source)
-	gl.ShaderSource(shader, 1, csources, nil)
+type Shader struct {
+	handle        uint32
+	shaderType    uint32
+	shaderTypeStr string
+	source        string
+}
+
+func NewShader(config ShaderConfig) (*Shader, error) {
+	shader := &Shader{
+		source:        config.Source,
+		shaderType:    config.ShaderType,
+		shaderTypeStr: shaderTypeString(config.ShaderType),
+	}
+	if err := shader.compile(); err != nil {
+		return nil, err
+	}
+	return shader, nil
+}
+
+func (s Shader) GetHandle() uint32 {
+	return s.handle
+}
+
+func (s *Shader) compile() error {
+	shader := gl.CreateShader(s.shaderType)
+
+	source, free := gl.Strs(s.source)
+	gl.ShaderSource(shader, 1, source, nil)
 	free()
 	gl.CompileShader(shader)
 
-	var status int32
-	gl.GetShaderiv(shader, gl.COMPILE_STATUS, &status)
-	if status == gl.FALSE {
+	var compileStatus int32
+	gl.GetShaderiv(shader, gl.COMPILE_STATUS, &compileStatus)
+	if compileStatus == gl.FALSE {
 		var logLength int32
 		gl.GetShaderiv(shader, gl.INFO_LOG_LENGTH, &logLength)
 
 		logMessage := strings.Repeat("\x00", int(logLength+1))
 		gl.GetShaderInfoLog(shader, logLength, nil, gl.Str(logMessage))
-
-		log.Printf(
-			"OpenGL shader compile failed: type=%s error=%s\n",
-			shaderTypeString(shaderType),
-			logMessage,
-		)
-		return 0, fmt.Errorf("failed to compile %v: %v", source, logMessage)
+		gl.DeleteShader(shader)
+		return errors.New(logMessage)
 	}
+	s.handle = shader
+	return nil
+}
 
-	log.Printf("OpenGL shader compile success: type=%s\n", shaderTypeString(shaderType))
-	return shader, nil
+func (s *Shader) Cleanup() {
+	gl.DeleteShader(s.handle)
+	s.handle = 0
 }
 
 func shaderTypeString(shaderType uint32) string {

@@ -133,7 +133,20 @@ func main() {
 		}
 	})
 
-	program := createProgram()
+	program, err := s.NewShaderProgram([]s.ShaderConfig{
+		{
+			Source:     vertexShaderSource,
+			ShaderType: gl.VERTEX_SHADER,
+		},
+		{
+			Source:     fragmentShaderSource,
+			ShaderType: gl.FRAGMENT_SHADER,
+		},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer program.Cleanup()
 	for !window.ShouldClose() {
 		t := time.Now()
 		draw(window, program, gol)
@@ -148,32 +161,11 @@ func main() {
 	}
 }
 
-func createProgram() uint32 {
-	vertexShader, err := s.CompileShader(vertexShaderSource, gl.VERTEX_SHADER)
-	if err != nil {
-		log.Fatalf("Error compiling shader: %v", err)
-	}
-	defer gl.DeleteShader(vertexShader)
-
-	fragmentShader, err := s.CompileShader(fragmentShaderSource, gl.FRAGMENT_SHADER)
-	if err != nil {
-		log.Fatalf("Error compiling shader: %v", err)
-	}
-	defer gl.DeleteShader(fragmentShader)
-
-	program := gl.CreateProgram()
-	gl.AttachShader(program, vertexShader)
-	gl.AttachShader(program, fragmentShader)
-	gl.LinkProgram(program)
-
-	return program
-}
-
-func draw(window *glfw.Window, program uint32, gol *GameOfLife) {
+func draw(window *glfw.Window, program *s.ShaderProgram, gol *GameOfLife) {
 	gl.ClearColor(0.0, 0.0, 0.0, 1.0)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-	gl.UseProgram(program)
-	gol.DrawInstances(program)
+	gl.UseProgram(program.GetHandle())
+	gol.DrawInstances(program.GetHandle())
 
 	// renderables := []p.Renderable2D{}
 	// renderables3D := []p.Renderable3D{}
